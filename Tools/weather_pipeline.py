@@ -451,6 +451,17 @@ VISIBILITY_CALIBRATION = 0.1
 # height falloff, engine units. The same in every city and at every time of day measured.
 CLEAR_FOG_DENSITY = 0.0046
 CLEAR_FOG_FALLOFF = 0.065
+# The Ultra Dynamic Sky and Weather settings everything here is tuned against - the shipped level's own
+# authored values, which a freshly placed UDS/UDW does not have (its default fog alone cut the clear
+# visibility from 20 to 16.8 km). Written onto the level's sky and weather before every capture.
+# Base Fog Density x Scale Fog Density = CLEAR_FOG_DENSITY (tested).
+SKY_LOOK = {"Base Fog Density": 0.022773, "Scale Fog Density": 0.2, "Cloudy Density Contribution": 0.030187,
+            "Overall Intensity": 0.932266, "Contrast": 0.0, "Render Ground Fog (Fog Above Distance Fields)": True,
+            "Enable Sun Light Shaft Bloom": True, "Cloud Direction": 131.519952}
+WEATHER_LOOK = {"Rain Extra Ambient Light": 0.416, "Wind Direction": 131.519952}
+# The blueprint classes the level needs exactly one of each of.
+SKY_CLASS = "Ultra_Dynamic_Sky_C"
+WEATHER_CLASS = "Ultra_Dynamic_Weather_C"
 VISIBILITY_CONTRAST_BITS = math.log2(20.0) # 5% contrast left, in Unreal's base-2 fog transmittance
 FORBIDDEN_NAME_CHARS = '<>:"/\\|?* '       # location names become folder names
 
@@ -1041,8 +1052,9 @@ def ion_token_problem(token: Optional[str], source: str) -> Optional[str]:
     """Why the token cannot load the city tiles, asked of Cesium ion itself; None when it can, or when
     Cesium ion cannot be reached (then a warning is printed and the capture tries anyway). Never
     includes the token: Cesium ion's error replies echo it."""
-    get_one = (f"Copy a token from https://ion.cesium.com/tokens into {ION_TOKEN_FILE_NAME} in the project "
-               f"folder (one line; it is git-ignored), or set {ION_TOKEN_ENV}.")
+    get_one = (f"In the editor: Cesium panel -> Token -> choose one, then File -> Save All and close the "
+               f"editor. Or copy a token from https://ion.cesium.com/tokens into {ION_TOKEN_FILE_NAME} in the "
+               f"project folder (one line; it is git-ignored), or set {ION_TOKEN_ENV}.")
     if not token:
         return f"No Cesium ion access token. {get_one}"
     url = ION_ENDPOINT.format(asset=GOOGLE_TILES_ION_ASSET) + "?" + urllib.parse.urlencode({"access_token": token})
@@ -1106,8 +1118,15 @@ def set_level_location(city: City, editor: Path, origin_height_m: Optional[float
         return False
     result = SITE_RESULT.read_text(encoding="utf-8") if SITE_RESULT.exists() else ""
     saved, offsets = parse_site_result(result)
-    if "NOSKY" in result.split():
-        print("  warning: no Ultra Dynamic Sky actor in the level - CLOUDS was not applied.", file=sys.stderr)
+    removed, missing = level_actor_notes(result)
+    for label in removed:
+        print(f"  note: removed the extra {label} from the level - it needs exactly one of each, and two "
+              f"skies or weathers put two fogs, cloud layers and suns into every picture.")
+    if missing:
+        print(f"Not capturing: the level has no {' and no '.join(missing)}. Open MyWorld.uproject, drag "
+              f"{' and '.join(missing)} in from Content/UltraDynamicSky/Blueprints, File -> Save All, close "
+              f"the editor and run again.", file=sys.stderr)
+        return False
     for name, z_cm in offsets:
         print(f"  warning: tileset '{name}' is saved at Z={z_cm:.0f} cm. It should be at 0: the plugin "
               f"moves it back at Play, but the editor view will not match the capture.", file=sys.stderr)
@@ -1121,7 +1140,7 @@ def sky_level_settings() -> dict:
     off = {key for switch, keys in CLOUD_SWITCHES.items() if not CLOUDS[switch] for key in keys}
     clouds = {name: (0.0 if key in off else CLOUDS[key]) for key, (name, _) in CLOUD_PROPERTIES.items()}
     return {"clouds": clouds, "sky_light": float(SUN["sky_light"]), "lens_flare": SUN["lens_flare"],
-            "anchor_m": sky_anchor_above_ground_m()}
+            "anchor_m": sky_anchor_above_ground_m(), "sky_look": SKY_LOOK, "weather_look": WEATHER_LOOK}
 
 
 def parse_site_result(text: str):
@@ -1140,13 +1159,25 @@ def parse_site_result(text: str):
     return bool(lines) and lines[0].startswith("OK"), offsets
 
 
+def level_actor_notes(text: str) -> Tuple[List[str], List[str]]:
+    """From the level save's report: (extra sky/weather actors it removed, the ones the level lacks)."""
+    removed, missing = [], []
+    for line in text.splitlines():
+        kind, _, what = line.strip().partition(" ")
+        if kind == "REMOVED":
+            removed.append(what)
+        elif kind == "MISSING":
+            missing.append(what)
+    return removed, missing
+
+
 def run_cities(cities: Sequence[City], editor: Path) -> int:
     """Capture every city in ONE Unreal session and check each. 0 = every image written and every
     check passed. The level is saved at the first city; the plugin moves the globe to each next one."""
     first = cities[0]
     first.write_ini(sites=cities)
     if not set_level_location(first, editor, known_ground_height(first)):
-        print(f"Not capturing: the level is not at {first.name}'s coordinates.", file=sys.stderr)
+        print(f"Not capturing: the level could not be prepared for {first.name}.", file=sys.stderr)
         return 1
     session_started = time.time()
     if not capture_session(cities, editor):
@@ -1763,8 +1794,9 @@ def _set_level_location_inside_unreal() -> None:
     Runs in the headless editor (pythonscript commandlet), started by set_level_location.
 
     Sets the CesiumGeoreference origin to the city - latitude, longitude and, when WP_HEIGHT is given,
-    the calculated ground height - and the CLOUDS look on Ultra Dynamic Sky, and saves the level, so
-    the editor and the capture show the same place, height and sky. Nothing else in the level changes.
+    the calculated ground height - keeps exactly one Ultra Dynamic Sky and one Ultra Dynamic Weather,
+    writes SKY_LOOK, WEATHER_LOOK and the CLOUDS look onto them, and saves the level, so the editor and
+    the capture show the same place, height and sky whichever UDS/UDW the level holds.
     """
     import unreal  # only exists inside the editor
 
@@ -1781,30 +1813,53 @@ def _set_level_location_inside_unreal() -> None:
     georeference.set_editor_property("origin_longitude", float(os.environ["WP_LON"]))
     if os.environ.get("WP_HEIGHT"):
         georeference.set_editor_property("origin_height", float(os.environ["WP_HEIGHT"]))
-    sky = next((actor for actor in actors.get_all_level_actors()
-                if actor.get_class().get_name().startswith("Ultra_Dynamic_Sky")), None)
-    settings = json.loads(os.environ["WP_SKY"])
-    for name, value in settings["clouds"].items() if sky else ():
-        sky.set_editor_property(name, value if isinstance(value, bool) else float(value))
-    if sky:
-        sky.set_editor_property("Sky Light Intensity", settings["sky_light"])
-        sky.set_editor_property("Enable Sun Lens Flare", settings["lens_flare"])
-        # The fog plane and atmosphere surface sit at the sky actor; the plugin puts the ground at Z = 0.
-        where = sky.get_actor_location()
-        sky.set_actor_location(unreal.Vector(where.x, where.y, settings["anchor_m"] * CM_PER_M), False, False)
+    notes = []
+    sky = _only_one_inside_unreal(actors, SKY_CLASS, "Ultra_Dynamic_Sky", notes)
+    weather = _only_one_inside_unreal(actors, WEATHER_CLASS, "Ultra_Dynamic_Weather", notes)
+    if not (sky and weather):
+        Path(os.environ["WP_RESULT"]).write_text("\n".join(notes), encoding="utf-8")
+        return
+    _apply_look_inside_unreal(unreal, sky, weather, json.loads(os.environ["WP_SKY"]))
     if not level.save_current_level():
         return
     # A World Partition level keeps each actor in its own file, which saving the map does not write -
     # the sky's settings and position were lost that way. Save the changed actors' files explicitly.
-    changed = [actor.get_outermost() for actor in (georeference, sky) if actor]
+    # A removed actor's file is deleted by saving the dirty packages.
+    changed = [actor.get_outermost() for actor in (georeference, sky, weather)]
     if not unreal.EditorLoadingAndSavingUtils.save_packages(changed, False):
         return
+    if notes and not unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True):
+        return
 
-    report = ["OK %s %s" % (os.environ["WP_LAT"], os.environ["WP_LON"])]
-    report += [] if sky else ["NOSKY"]
+    report = ["OK %s %s" % (os.environ["WP_LAT"], os.environ["WP_LON"])] + notes
     report += ["TILESET %s %.1f" % (actor.get_actor_label(), actor.get_actor_location().z)
                for actor in actors.get_all_level_actors() if actor.get_class().get_name() == "Cesium3DTileset"]
     Path(os.environ["WP_RESULT"]).write_text("\n".join(report), encoding="utf-8")
+
+
+def _only_one_inside_unreal(actors, class_name: str, what: str, notes: List[str]):
+    """The level's one actor of class_name, extras destroyed (the first by name is kept); None if there is
+    none. Each removal and absence is added to notes for the report."""
+    found = sorted((actor for actor in actors.get_all_level_actors()
+                    if actor.get_class().get_name() == class_name), key=lambda actor: actor.get_name())
+    for extra in found[1:]:
+        notes.append("REMOVED %s '%s'" % (what, extra.get_actor_label()))
+        actors.destroy_actor(extra)
+    if not found:
+        notes.append("MISSING " + what)
+    return found[0] if found else None
+
+
+def _apply_look_inside_unreal(unreal, sky, weather, settings: dict) -> None:
+    """SKY_LOOK, WEATHER_LOOK, CLOUDS, the sky light and lens flare, and the sky at the fog-plane height."""
+    for actor, look in ((sky, settings["sky_look"]), (weather, settings["weather_look"]), (sky, settings["clouds"])):
+        for name, value in look.items():
+            actor.set_editor_property(name, value if isinstance(value, bool) else float(value))
+    sky.set_editor_property("Sky Light Intensity", settings["sky_light"])
+    sky.set_editor_property("Enable Sun Lens Flare", settings["lens_flare"])
+    # The fog plane and atmosphere surface sit at the sky actor; the plugin puts the ground at Z = 0.
+    where = sky.get_actor_location()
+    sky.set_actor_location(unreal.Vector(where.x, where.y, settings["anchor_m"] * CM_PER_M), False, False)
 
 
 if os.environ.get("WP_INSIDE_UNREAL"):

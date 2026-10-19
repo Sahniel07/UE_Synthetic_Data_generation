@@ -1399,5 +1399,48 @@ class TestCesiumIonToken(unittest.TestCase):
         self.assertIn(wp.ION_TOKEN_FILE_NAME, wp.TILE_STATUS_REASONS["401"])
 
 
+
+class TestAnyUltraDynamicSkyWorks(unittest.TestCase):
+    """A user may place their own Ultra Dynamic Sky and Weather, or add them next to the shipped ones: the
+    level save keeps one of each and writes the tuned look onto it, so the pictures do not change."""
+
+    def level_save_reports(self, report):
+        """Runs set_level_location with the headless editor replaced by one that reports `report`."""
+        original = wp.subprocess.run
+        wp.subprocess.run = lambda *args, **kwargs: wp.SITE_RESULT.write_text(report, encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                saved = wp.set_level_location(build_cities()[0], Path("unused"))
+        finally:
+            wp.subprocess.run = original
+            wp.SITE_RESULT.unlink(missing_ok=True)
+        return saved, out.getvalue() + err.getvalue()
+
+    def test_the_look_gives_the_clear_fog_the_visibility_is_computed_for(self):
+        look = wp.SKY_LOOK
+        self.assertAlmostEqual(look["Base Fog Density"] * look["Scale Fog Density"], wp.CLEAR_FOG_DENSITY, places=4)
+        settings = wp.sky_level_settings()
+        self.assertEqual((settings["sky_look"], settings["weather_look"]), (wp.SKY_LOOK, wp.WEATHER_LOOK))
+
+    def test_extra_skies_are_removed_and_named(self):
+        saved, said = self.level_save_reports("OK 1 2\nREMOVED Ultra_Dynamic_Sky 'Ultra_Dynamic_Sky2'\n"
+                                              "REMOVED Ultra_Dynamic_Weather 'Ultra_Dynamic_Weather2'")
+        self.assertTrue(saved)
+        self.assertIn("removed the extra Ultra_Dynamic_Sky 'Ultra_Dynamic_Sky2'", said)
+        self.assertIn("removed the extra Ultra_Dynamic_Weather 'Ultra_Dynamic_Weather2'", said)
+
+    def test_a_missing_sky_or_weather_stops_with_what_to_do(self):
+        saved, said = self.level_save_reports("MISSING Ultra_Dynamic_Weather")
+        self.assertFalse(saved)
+        self.assertIn("the level has no Ultra_Dynamic_Weather", said)
+        self.assertIn("Content/UltraDynamicSky/Blueprints", said)
+
+    def test_one_of_each_says_nothing_extra(self):
+        saved, said = self.level_save_reports("OK 1 2\nTILESET Google 0.0")
+        self.assertTrue(saved)
+        self.assertNotIn("removed", said)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

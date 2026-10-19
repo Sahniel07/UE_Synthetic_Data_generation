@@ -33,34 +33,30 @@ Saved/WeatherPipeline/WeatherSnapshots/<location>/
 
 ## 2. Setup (once)
 
-1. **Clone** the repo, e.g. to `C:\Projects\MyWorld`. Avoid OneDrive folders.
+1. **Download** the repo (clone, or *Code → Download ZIP* and unzip), e.g. to `C:\Projects\MyWorld`.
+   Avoid OneDrive folders.
 2. **Install Cesium for Unreal.** Epic Games Launcher → Fab Library → Cesium for Unreal →
    *Install to Engine* → 5.5.
-3. **Add Ultra Dynamic Sky to the project.** Fab Library → Ultra Dynamic Sky → *Add to Project* →
-   choose this project. It must end up in `Content/UltraDynamicSky/`, which is where the plugin and
-   the weather presets look for it.
-4. **Build.** Right-click `MyWorld.uproject` → *Generate Visual Studio project files*, then either
-   open `MyWorld.sln` and build **Development Editor / Win64**, or run:
-   ```bat
-   "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" MyWorldEditor Win64 Development "-Project=%CD%\MyWorld.uproject" -WaitMutex
-   ```
-5. **Give the pipeline your Cesium ion token.**
+3. **Install Ultra Dynamic Sky into the project's Content.** Fab Library → Ultra Dynamic Sky →
+   *Add to Project* → choose this project. It must end up in `Content/UltraDynamicSky/`, which is
+   where the plugin and the weather presets look for it. Do this **before** opening the project.
+4. **Build.** Double-click `MyWorld.uproject` and answer **Yes** when it asks to rebuild the missing
+   modules. If that fails, right-click `MyWorld.uproject` → *Generate Visual Studio project files*,
+   open `MyWorld.sln` and build **Development Editor / Win64**.
+5. **Log in to Cesium with your own key** in the editor that opens (level `Ingolstadt`):
    1. On [ion.cesium.com](https://ion.cesium.com): *Asset Depot* → **Google Photorealistic 3D Tiles**
       → *Add to my assets*.
-   2. *Access Tokens* → copy your *Default* token (or create one that may read asset `2275207`).
-   3. Create a file **`cesium_ion_token.txt`** in the project folder (next to `MyWorld.uproject`) and
-      paste the token into it as one line. You can set the environment variable `CESIUM_ION_TOKEN`
-      instead.
-
-   The file is git-ignored; never commit a token. Every capture checks the token with Cesium ion
-   before Unreal starts, and names the problem if there is one.
-
-   To also see the city in the editor, open the *Cesium* panel → *Connect to Cesium ion* → *Token*.
-   The pipeline does not use that token. The editor keeps it only after **File → Save All**, so a
-   token chosen there without saving never reaches a capture.
-6. **Close the Unreal editor.** Runs start their own Unreal and refuse to start while the editor
-   is open.
-7. **Check the install:**
+   2. In the editor's *Cesium* panel: *Connect to Cesium ion* and sign in, then *Token* → *Select or
+      create a new project default token* (your *Default* token works).
+   3. The city appears in the viewport.
+6. **Ultra Dynamic Sky and Weather in the level.** The level already contains one
+   `Ultra_Dynamic_Sky` and one `Ultra_Dynamic_Weather`. If they are missing, drag both in from
+   `Content/UltraDynamicSky/Blueprints/`. Extra copies do no harm: before each capture the pipeline
+   keeps one of each, removes the rest (it says so), and applies the sky look it is tuned for.
+7. **File → Save All, then close the editor.** *Save All* matters: it stores your Cesium token in
+   the project, where the capture reads it. A token chosen without saving stays in the editor only.
+   Captures start their own Unreal and refuse to start while the editor is open.
+8. **Check the install:**
    ```bat
    .\Tools\weather.cmd --test
    ```
@@ -72,6 +68,13 @@ files from the current folder without it. Already inside `Tools`? Use `.\weather
 
 `weather.cmd` finds a usable Python on its own; it uses Unreal's bundled Python first. To use
 another Python, `set UE_PYTHON=C:\path\python.exe`.
+
+**Cesium token without the editor:** paste the token as one line into a file `cesium_ion_token.txt`
+next to `MyWorld.uproject`, or set the environment variable `CESIUM_ION_TOKEN`. Either one takes
+precedence over the token saved in the editor. The file is git-ignored; never commit a token.
+
+Every capture checks the token with Cesium ion before Unreal starts, and names the problem if there
+is one.
 
 ## 3. Capture a dataset
 
@@ -203,10 +206,12 @@ spot.
 | Message / symptom | Fix |
 |---|---|
 | "The Unreal editor is open. Close it first" | Close it; a run needs the level file. |
-| `Not capturing: No Cesium ion access token` | Create `cesium_ion_token.txt` (Setup step 5). |
-| `Not capturing: Cesium ion rejected the access token` (or HTTP 401 while loading tiles) | The token is wrong, truncated or deleted. Copy it again from ion.cesium.com → *Access Tokens* into `cesium_ion_token.txt`. |
+| `Not capturing: No Cesium ion access token` | The editor's token was never saved. Redo Setup steps 5 and 7 (**File → Save All**), or use `cesium_ion_token.txt`. |
+| `Not capturing: Cesium ion rejected the access token` (or HTTP 401 while loading tiles) | The token is wrong, truncated or deleted. Choose it again in the Cesium panel and **Save All**, or copy it from ion.cesium.com → *Access Tokens* into `cesium_ion_token.txt`. |
 | `... cannot read Cesium ion asset 2275207` (or HTTP 404) | Add *Google Photorealistic 3D Tiles* to *My Assets*, and let the token read it (Setup step 5). |
-| Editor shows a "Cesium ion Token Troubleshooting" window | This affects the editor only. Captures use `cesium_ion_token.txt`. To fix the editor: *Select or create a new project default token*, then **File → Save All**. |
+| Editor shows a "Cesium ion Token Troubleshooting" window | Choose *Select or create a new project default token*, then **File → Save All**. |
+| `note: removed the extra Ultra_Dynamic_Sky ...` | Expected when UDS/UDW were dragged into a level that already had them; the pipeline keeps one of each. |
+| `Not capturing: the level has no Ultra_Dynamic_Sky` (or Weather) | Drag it in from `Content/UltraDynamicSky/Blueprints/`, **Save All**, close the editor. |
 | HTTP 429 | Tile quota used up: wait, or raise `tile_error`. |
 | `The module 'Tools' could not be loaded` (PowerShell) | Run from the project folder with the leading `.\`: `.\Tools\weather.cmd --imagecount`. Inside `Tools`: `.\weather.cmd --imagecount`. |
 | `No usable Python found` | Install UE 5.5 in the default path, or `set UE_PYTHON=...`. |

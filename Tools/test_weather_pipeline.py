@@ -1442,5 +1442,62 @@ class TestAnyUltraDynamicSkyWorks(unittest.TestCase):
         self.assertNotIn("removed", said)
 
 
+
+class TestUltraDynamicSkyIsInPlace(unittest.TestCase):
+    """UDS is not in the repo. From Fab or copied in by hand, it must be whole at Content/UltraDynamicSky -
+    a capture without it, or with it elsewhere, says so before Unreal starts."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.saved = (wp.PROJECT_ROOT, wp.CONTENT_DIR, wp.UDS_DIR, wp.UDS_PRESETS_DIR, wp.PROJECT_PRESETS_DIR)
+        wp.PROJECT_ROOT, wp.CONTENT_DIR = self.root, self.root / "Content"
+        self.place(wp.CONTENT_DIR / "UltraDynamicSky")
+        wp.PROJECT_PRESETS_DIR = wp.CONTENT_DIR / "WeatherPipeline" / "Presets"
+
+    def tearDown(self):
+        (wp.PROJECT_ROOT, wp.CONTENT_DIR, wp.UDS_DIR, wp.UDS_PRESETS_DIR, wp.PROJECT_PRESETS_DIR) = self.saved
+
+    def place(self, uds_dir):
+        wp.UDS_DIR = uds_dir
+        wp.UDS_PRESETS_DIR = uds_dir / "Blueprints" / "Weather_Effects" / "Weather_Presets"
+
+    def install(self, uds_dir, skip_preset=None):
+        """A UDS copy at uds_dir: its blueprints and every preset the conditions use."""
+        for part in wp.UDS_BLUEPRINTS:
+            (uds_dir / part).parent.mkdir(parents=True, exist_ok=True)
+            (uds_dir / part).write_bytes(b"uasset")
+        presets = uds_dir / "Blueprints" / "Weather_Effects" / "Weather_Presets"
+        presets.mkdir(parents=True, exist_ok=True)
+        for asset in {preset["asset"] for preset in PRESETS.values()} - {skip_preset}:
+            (presets / f"{asset}.uasset").write_bytes(b"uasset")
+
+    def test_a_whole_copy_in_place_is_enough(self):
+        self.install(wp.UDS_DIR)
+        self.assertIsNone(wp.uds_problem())
+
+    def test_no_uds_says_both_ways_to_get_it(self):
+        problem = wp.uds_problem()
+        self.assertIn("not in this project", problem)
+        self.assertIn("Add to Project", problem)
+        self.assertIn("copy the whole UltraDynamicSky folder", problem)
+
+    def test_a_copy_in_the_wrong_folder_is_found_and_named(self):
+        self.install(wp.CONTENT_DIR / "Imported" / "UltraDynamicSky")
+        self.assertIn("is at Content/Imported/UltraDynamicSky, but it must be exactly Content/UltraDynamicSky",
+                      wp.uds_problem())
+
+    def test_a_partial_copy_names_what_is_missing(self):
+        self.install(wp.UDS_DIR, skip_preset="Clear_Skies")
+        self.assertIn("preset(s) Clear_Skies not found", wp.uds_problem())
+
+
+
+class TestThisProjectsUltraDynamicSky(unittest.TestCase):
+    def test_installed_here_means_ready(self):
+        if not wp.UDS_DIR.is_dir():
+            self.skipTest("Ultra Dynamic Sky not installed in this checkout")
+        self.assertIsNone(wp.uds_problem())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

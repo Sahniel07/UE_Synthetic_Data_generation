@@ -346,6 +346,13 @@ UNREAL_ION_TOKEN_ENV = "WP_CESIUM_ION_TOKEN"         # how the plugin receives i
 ION_TOKEN_FILE = PROJECT_ROOT / ION_TOKEN_FILE_NAME
 # What the editor last saved as the project's default token - the fallback when none is given.
 SAVED_ION_SERVER = PROJECT_ROOT / "Content" / "CesiumSettings" / "CesiumIonServers" / "CesiumIonSaaS.uasset"
+# --- Ultra Dynamic Sky: not in the repo (paid), added from Fab or copied in by hand -----------------
+# The plugin and the presets find it by these /Game/UltraDynamicSky/... paths, so only this place works.
+CONTENT_DIR = PROJECT_ROOT / "Content"
+UDS_DIR = CONTENT_DIR / "UltraDynamicSky"
+UDS_BLUEPRINTS = ("Blueprints/Ultra_Dynamic_Sky.uasset", "Blueprints/Ultra_Dynamic_Weather.uasset")
+UDS_PRESETS_DIR = UDS_DIR / "Blueprints" / "Weather_Effects" / "Weather_Presets"
+PROJECT_PRESETS_DIR = CONTENT_DIR / "WeatherPipeline" / "Presets"      # the WP_* copies, in the repo
 LEVEL_SAVE_TIMEOUT_S = 900                 # the headless level save takes about a minute
 TILE_STATUS_REASONS = {
     "429": "the tile quota is used up - wait for it to reset, or raise tile_error to download less",
@@ -1077,6 +1084,28 @@ def ion_token_problem(token: Optional[str], source: str) -> Optional[str]:
     return f"Cesium ion answered HTTP {code} when checking the access token from {source}."
 
 
+def uds_problem() -> Optional[str]:
+    """Why Ultra Dynamic Sky cannot drive the weather here, or None: it must sit, whole, at
+    Content/UltraDynamicSky - from Fab's Add to Project, or the UltraDynamicSky folder copied in."""
+    how = ("Add it from Fab (Ultra Dynamic Sky -> Add to Project), or copy the whole UltraDynamicSky folder "
+           "of a project that has it into this project's Content folder, with the editor closed.")
+    missing = [part for part in UDS_BLUEPRINTS if not (UDS_DIR / part).is_file()]
+    if missing:
+        elsewhere = next(CONTENT_DIR.rglob(Path(UDS_BLUEPRINTS[0]).name), None) if CONTENT_DIR.is_dir() else None
+        if elsewhere:
+            found = elsewhere.parent.parent.relative_to(PROJECT_ROOT).as_posix()
+            return (f"Ultra Dynamic Sky is at {found}, but it must be exactly Content/UltraDynamicSky (its "
+                    f"assets refer to that path). Move or rename that folder, with the editor closed.")
+        return f"Ultra Dynamic Sky is not in this project (no Content/UltraDynamicSky/{missing[0]}). {how}"
+    absent = sorted({preset["asset"] for preset in PRESETS.values()
+                     if not (UDS_PRESETS_DIR / f"{preset['asset']}.uasset").is_file()
+                     and not (PROJECT_PRESETS_DIR / f"{preset['asset']}.uasset").is_file()})
+    if absent:
+        return (f"Ultra Dynamic Sky is incomplete: weather preset(s) {', '.join(absent)} not found in "
+                f"{UDS_PRESETS_DIR.relative_to(PROJECT_ROOT).as_posix()}. {how}")
+    return None
+
+
 def unreal_env() -> Dict[str, str]:
     """The capture session's environment: this one, plus the Cesium ion token for the plugin."""
     env = dict(os.environ)
@@ -1774,7 +1803,7 @@ def _capture(cities: List[City]) -> int:
               "Let it finish or end it in Task Manager first: two sessions would overwrite each other's "
               "settings and log.", file=sys.stderr)
         return 1
-    problem = ion_token_problem(*find_ion_token())
+    problem = uds_problem() or ion_token_problem(*find_ion_token())
     if problem:
         print(f"Not capturing: {problem}", file=sys.stderr)
         return 1

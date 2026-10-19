@@ -37,9 +37,15 @@ Saved/WeatherPipeline/WeatherSnapshots/<location>/
    Avoid OneDrive folders.
 2. **Install Cesium for Unreal.** Epic Games Launcher → Fab Library → Cesium for Unreal →
    *Install to Engine* → 5.5.
-3. **Install Ultra Dynamic Sky into the project's Content.** Fab Library → Ultra Dynamic Sky →
-   *Add to Project* → choose this project. It must end up in `Content/UltraDynamicSky/`, which is
-   where the plugin and the weather presets look for it. Do this **before** opening the project.
+3. **Put Ultra Dynamic Sky into the project's Content**, before opening the project. Either way
+   works:
+   - **From Fab:** Fab Library → Ultra Dynamic Sky → *Add to Project* → choose this project.
+   - **By hand, if you already have it** in another project: with the editor closed, copy that
+     project's whole `Content\UltraDynamicSky` folder into this project's `Content` folder.
+
+   Either way the result must be exactly `Content\UltraDynamicSky\Blueprints\Ultra_Dynamic_Sky.uasset`:
+   the folder not renamed, not nested in another folder, and complete. Every capture checks this
+   first, and names a wrong place or missing parts.
 4. **Build.** Double-click `MyWorld.uproject` and answer **Yes** when it asks to rebuild the missing
    modules. If that fails, right-click `MyWorld.uproject` → *Generate Visual Studio project files*,
    open `MyWorld.sln` and build **Development Editor / Win64**.
@@ -216,7 +222,7 @@ spot.
 | `The module 'Tools' could not be loaded` (PowerShell) | Run from the project folder with the leading `.\`: `.\Tools\weather.cmd --imagecount`. Inside `Tools`: `.\weather.cmd --imagecount`. |
 | `No usable Python found` | Install UE 5.5 in the default path, or `set UE_PYTHON=...`. |
 | Build fails: "LiveCoding ... denied" | An editor, possibly hidden, is still running. End `UnrealEditor.exe` in Task Manager. |
-| Missing Ultra Dynamic Sky classes | UDS is not at `Content/UltraDynamicSky/`. Redo Setup step 3. |
+| `Not capturing: Ultra Dynamic Sky is not in this project` / `is at ..., but it must be exactly Content/UltraDynamicSky` / `is incomplete` | Redo Setup step 3: the whole `UltraDynamicSky` folder, directly in `Content`. |
 
 ## Repository layout
 

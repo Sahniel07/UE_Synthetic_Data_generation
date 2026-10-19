@@ -1387,11 +1387,21 @@ class TestCesiumIonToken(unittest.TestCase):
 
     def test_the_token_file_is_never_committed(self):
         root = TOOLS.parent
-        try:
-            result = subprocess.run(["git", "check-ignore", "-q", wp.ION_TOKEN_FILE_NAME], cwd=root)
+        ignored = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertIn(f"/{wp.ION_TOKEN_FILE_NAME}", ignored)
+        try:   # and git agrees - in a clone; a ZIP download is no git repository (exit code 128)
+            inside = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], cwd=root,
+                                    capture_output=True, text=True).stdout.strip() == "true"
         except FileNotFoundError:
-            self.skipTest("git not installed")
-        self.assertEqual(result.returncode, 0, f"{wp.ION_TOKEN_FILE_NAME} would be committed")
+            inside = False
+        if inside:
+            result = subprocess.run(["git", "check-ignore", "-q", wp.ION_TOKEN_FILE_NAME], cwd=root)
+            self.assertEqual(result.returncode, 0, f"{wp.ION_TOKEN_FILE_NAME} would be committed")
+
+    def test_the_level_save_turns_world_bounds_checks_off(self):
+        # Cesium warns about them in every session, and they can destroy far-away actors.
+        source = Path(wp.__file__).read_text(encoding="utf-8")
+        self.assertIn('set_editor_property("enable_world_bounds_checks", False)', source)
 
     def test_tile_errors_name_the_cesium_token_not_a_google_key(self):
         reasons = " ".join(wp.TILE_STATUS_REASONS.values())

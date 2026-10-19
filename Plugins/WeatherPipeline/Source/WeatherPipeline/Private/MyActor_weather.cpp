@@ -184,7 +184,6 @@ namespace UDWNames
 	static const FName FoggyDensityContribution(TEXT("Foggy Density Contribution"));
 	static const FName CloudyDensityContribution(TEXT("Cloudy Density Contribution"));
 	static const FName DustDensityContribution(TEXT("Dust Density Contribution"));
-	static const FName CurrentFogDensity(TEXT("Current Fog Density"));
 
 	static const FName BaseFogDensity(TEXT("Base Fog Density"));
 	static const FName ScaleFogDensity(TEXT("Scale Fog Density"));
@@ -2783,12 +2782,11 @@ void AMyActor_weather::ApplyConditionLookOverrides(const FWeatherCondition& Cond
 		// cloudiness rather than fog. Logged as raw values so the arithmetic can be checked against
 		// the resulting component rather than inferred from it.
 		float LiveFoggyContrib = 0.0f, LiveCloudyContrib = 0.0f, LiveDustContrib = 0.0f;
-		float LiveCurrentFogDensity = 0.0f, LiveCloudCoverage = 0.0f, ComponentFalloff = -1.0f;
+		float LiveCloudCoverage = 0.0f, ComponentFalloff = -1.0f;
 
 		UDWBridge::GetFloat(UDSForFog, UDWNames::FoggyDensityContribution,  LiveFoggyContrib);
 		UDWBridge::GetFloat(UDSForFog, UDWNames::CloudyDensityContribution, LiveCloudyContrib);
 		UDWBridge::GetFloat(UDSForFog, UDWNames::DustDensityContribution,   LiveDustContrib);
-		UDWBridge::GetFloat(UDSForFog, UDWNames::CurrentFogDensity,         LiveCurrentFogDensity);
 		UDWBridge::GetFloat(UDSForFog, UDWNames::CloudCoverage,             LiveCloudCoverage);
 
 		if (const UExponentialHeightFogComponent* FogComp = GetSkyHeightFogComponent())
@@ -2798,11 +2796,11 @@ void AMyActor_weather::ApplyConditionLookOverrides(const FWeatherCondition& Cond
 
 		UE_LOG(LogTemp, Log,
 			TEXT("[FogChannels] %s: weatherFog=%.2f cloudCover=%.2f | base=%.4f + foggyContrib=%.4f ")
-			TEXT("+ cloudyContrib=%.4f + dustContrib=%.4f -> currentFogDensity=%.4f | component=%.4f ")
+			TEXT("+ cloudyContrib=%.4f + dustContrib=%.4f -> component=%.4f ")
 			TEXT("falloff=%.3f | PPWF=%.2f"),
 			*Condition.Label, LiveWeatherFog, LiveCloudCoverage,
 			LiveBaseDensity, LiveFoggyContrib, LiveCloudyContrib, LiveDustContrib,
-			LiveCurrentFogDensity, ComponentDensity, ComponentFalloff, LivePPWF);
+			ComponentDensity, ComponentFalloff, LivePPWF);
 	}
 
 	AActor* UDW = UDWActor.Get();
@@ -3683,11 +3681,19 @@ void AMyActor_weather::VerifyWeatherApplied(const FUDWWeatherStep& Step, const T
 		return;
 	}
 
+	// The GENERATED weather, as the metadata records it. The actor's own Rain/Snow/Fog/Cloud Coverage
+	// are inputs that a preset applied through Change Weather never sets: comparing the preset with
+	// those reported "did NOT take effect" on every capture, while the weather was in fact right.
+	UObject* LocalState = UDWBridge::GetLocalWeatherState(UDW);
+	if (!LocalState)
+	{
+		return;   // Cannot tell; the bridge reports the missing property.
+	}
 	float LiveRain = 0.0f, LiveSnow = 0.0f, LiveFog = 0.0f, LiveCloud = 0.0f;
-	UDWBridge::GetFloat(UDW, UDWNames::Rain, LiveRain);
-	UDWBridge::GetFloat(UDW, UDWNames::Snow, LiveSnow);
-	UDWBridge::GetFloat(UDW, UDWNames::Fog, LiveFog);
-	UDWBridge::GetFloat(UDW, UDWNames::CloudCoverage, LiveCloud);
+	UDWBridge::GetFloat(LocalState, UDWNames::Rain, LiveRain);
+	UDWBridge::GetFloat(LocalState, UDWNames::Snow, LiveSnow);
+	UDWBridge::GetFloat(LocalState, UDWNames::Fog, LiveFog);
+	UDWBridge::GetFloat(LocalState, UDWNames::CloudCoverage, LiveCloud);
 
 	// Absolute tolerance on a 0..10 scale - the old 0.05 was chosen when these were believed to be
 	// 0..1 and is unreasonably strict at ten times the range, especially while easing between steps.

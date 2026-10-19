@@ -224,6 +224,17 @@ spot.
 | Build fails: "LiveCoding ... denied" | An editor, possibly hidden, is still running. End `UnrealEditor.exe` in Task Manager. |
 | `Not capturing: Ultra Dynamic Sky is not in this project` / `is at ..., but it must be exactly Content/UltraDynamicSky` / `is incomplete` | Redo Setup step 3: the whole `UltraDynamicSky` folder, directly in `Content`. |
 
+**Harmless messages.** These come from Unreal or the Cesium plugin itself, appear in every project
+that uses them, and do not affect the pipeline:
+- `EnumProperty FCesiumMetadataPropertyStatisticValue::Semantic is not initialized properly`
+- `Found a deprecated ini key name in .../CesiumForUnreal/Config/...`
+- `Failed to load 'aqProf.dll'` / `'VtuneApi.dll'` / `'WinPixGpuCapturer.dll'` (optional profilers)
+- `NiagaraSystem was nullptr for OverrideName "SplatInterface"` (Ultra Dynamic Weather)
+- `Scene capture with bCaptureEveryFrame enabled was told to update`: on purpose with
+  `auto_exposure`, which needs every frame to settle the exposure
+- `Height calibration: no ground found ...` right at the start, before the city has loaded; it is
+  measured again once the tiles are there
+
 ## Repository layout
 
 ```

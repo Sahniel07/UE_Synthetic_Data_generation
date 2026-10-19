@@ -1842,6 +1842,9 @@ def _set_level_location_inside_unreal() -> None:
     georeference.set_editor_property("origin_longitude", float(os.environ["WP_LON"]))
     if os.environ.get("WP_HEIGHT"):
         georeference.set_editor_property("origin_height", float(os.environ["WP_HEIGHT"]))
+    # Cesium: a georeferenced world must not destroy actors "out of bounds" (and it warns when it can).
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    world.get_world_settings().set_editor_property("enable_world_bounds_checks", False)
     notes = []
     sky = _only_one_inside_unreal(actors, SKY_CLASS, "Ultra_Dynamic_Sky", notes)
     weather = _only_one_inside_unreal(actors, WEATHER_CLASS, "Ultra_Dynamic_Weather", notes)

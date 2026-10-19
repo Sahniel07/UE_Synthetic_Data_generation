@@ -3,10 +3,10 @@ setlocal enabledelayedexpansion
 rem ==================================================================================================
 rem  weather.cmd - run weather_pipeline.py with a real Python, from any directory.
 rem
-rem      Tools\weather.cmd                 capture every city in weather_pipeline.py
-rem      Tools\weather.cmd --city Sydney   one city
-rem      Tools\weather.cmd --imagecount    image count and time of a run, run nothing
-rem      Tools\weather.cmd --test          run the tests (no Unreal needed)
+rem      .\Tools\weather.cmd                 capture every city in weather_pipeline.py
+rem      .\Tools\weather.cmd --city Sydney   one city
+rem      .\Tools\weather.cmd --imagecount    image count and time of a run, run nothing
+rem      .\Tools\weather.cmd --test          run the tests (no Unreal needed)
 rem
 rem  Every option is weather_pipeline.py's own; this only finds a real Python for it. `python` on
 rem  Windows is often the Microsoft Store placeholder, so Unreal's bundled Python is used first.

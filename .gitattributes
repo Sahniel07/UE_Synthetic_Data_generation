@@ -3,3 +3,5 @@
 *.umap binary
 *.GRD binary
 *.png binary
+*.cmd text eol=crlf
+*.bat text eol=crlf

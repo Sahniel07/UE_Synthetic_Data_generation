@@ -55,11 +55,15 @@ Saved/WeatherPipeline/WeatherSnapshots/<location>/
    is open.
 7. **Check the install:**
    ```bat
-   Tools\weather.cmd --test
+   .\Tools\weather.cmd --test
    ```
    All tests should pass. This needs no Unreal window.
 
-`Tools\weather.cmd` finds a usable Python on its own; it uses Unreal's bundled Python first. To use
+Run every `.\Tools\weather.cmd` command **from the project folder** (the one with
+`MyWorld.uproject`), in PowerShell or Command Prompt. Keep the leading `.\`: PowerShell does not run
+files from the current folder without it. Already inside `Tools`? Use `.\weather.cmd` instead.
+
+`weather.cmd` finds a usable Python on its own; it uses Unreal's bundled Python first. To use
 another Python, `set UE_PYTHON=C:\path\python.exe`.
 
 ## 3. Capture a dataset
@@ -70,14 +74,14 @@ with its range.
 1. Edit the `LOCATION` list. One entry per location; see the example and reference below.
 2. Preview the job without running anything:
    ```bat
-   Tools\weather.cmd --imagecount
+   .\Tools\weather.cmd --imagecount
    ```
    This validates every setting (wrong values are named with the reason) and prints the image
    count and an ETA.
 3. Run it:
-   ```bat
-   Tools\weather.cmd                      &rem every location
-   Tools\weather.cmd --location Sydney    &rem only one
+   ```powershell
+   .\Tools\weather.cmd                       # every location
+   .\Tools\weather.cmd --location Sydney     # only that one
    ```
    It prints progress and an ETA, then the result of the checks for each location. A run is
    successful only when it ends with `Checks: all passed.`
@@ -126,7 +130,7 @@ A spot inside, against or facing into a building is drawn again automatically.
 
 ### Manual start (choose the first view yourself)
 
-Set `AUTOMATE = False` and run `Tools\weather.cmd`.
+Set `AUTOMATE = False` and run `.\Tools\weather.cmd`.
 
 1. A game window opens above the location.
 2. Fly to the view you want (WASD to move, Q/E for height, the mouse to look), then press **P**.
@@ -184,7 +188,7 @@ spot.
 
 | Tests | Command |
 |---|---|
-| Python: settings, ini, validation, metadata checks | `Tools\weather.cmd --test` |
+| Python: settings, ini, validation, metadata checks | `.\Tools\weather.cmd --test` |
 | C++: plugin logic, headless | `"C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "%CD%\MyWorld.uproject" -ExecCmds="Automation RunTests WeatherPipeline; Quit" -unattended -nullrhi -log` |
 
 ## 7. Troubleshooting
@@ -194,6 +198,7 @@ spot.
 | "The Unreal editor is open. Close it first" | Close it; a run needs the level file. |
 | HTTP 401 / 403 while loading tiles | Cesium ion token is missing or has no access to asset 2275207. Redo Setup step 5. |
 | HTTP 429 | Google tile quota used up: wait, or raise `tile_error`. |
+| `The module 'Tools' could not be loaded` (PowerShell) | Run from the project folder with the leading `.\`: `.\Tools\weather.cmd --imagecount`. Inside `Tools`: `.\weather.cmd --imagecount`. |
 | `No usable Python found` | Install UE 5.5 in the default path, or `set UE_PYTHON=...`. |
 | Build fails: "LiveCoding ... denied" | An editor, possibly hidden, is still running. End `UnrealEditor.exe` in Task Manager. |
 | Missing Ultra Dynamic Sky classes | UDS is not at `Content/UltraDynamicSky/`. Redo Setup step 3. |

@@ -2,10 +2,10 @@
 r"""
 weather_pipeline.py - capture labelled weather images of real cities in Unreal.
 
-    Tools\weather.cmd --imagecount     check the settings; show the image count and time, run nothing
-    Tools\weather.cmd --test           run the tests (no Unreal needed)
-    Tools\weather.cmd                  capture every city below
-    Tools\weather.cmd --location Sydney    one location only
+    .\Tools\weather.cmd --imagecount     check the settings; show the image count and time, run nothing
+    .\Tools\weather.cmd --test           run the tests (no Unreal needed)
+    .\Tools\weather.cmd                  capture every city below
+    .\Tools\weather.cmd --location Sydney    one location only
 
 With a real Python 3.8+ the same works as `python Tools\weather_pipeline.py [option]` or with the
 Run button in VS Code. weather.cmd only finds one for you: on Windows `python` is often just the

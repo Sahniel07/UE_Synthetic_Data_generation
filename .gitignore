@@ -1,0 +1,35 @@
+# Only what the pipeline needs: the project, its own assets, the plugin and the tools. Unreal's
+# generated folders, third-party assets (installed from Fab, see README) and credentials stay out.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/MyWorld.uproject
+!/.vsconfig
+!/Config/
+!/Source/
+!/Tools/
+!/Plugins/
+!/Content/
+!/Saved/
+
+# Saved: only the preset dump the tests compare PRESET_TABLE with
+/Saved/*
+!/Saved/wp_presets.txt
+
+/Config/*.bak
+/Tools/__pycache__/
+
+/Plugins/*
+!/Plugins/WeatherPipeline/
+/Plugins/WeatherPipeline/Binaries/
+/Plugins/WeatherPipeline/Intermediate/
+
+# Third-party content: install it yourself (README, Setup)
+/Content/UltraDynamicSky/
+/Content/StarterContent/
+# Holds your Cesium ion access token - never commit it
+/Content/CesiumSettings/
+/Content/Developers/
+/Content/Collections/
+/Content/*.corrupt_backup_*

@@ -33,3 +33,6 @@
 /Content/Developers/
 /Content/Collections/
 /Content/*.corrupt_backup_*
+
+# Your Cesium ion access token (README, Setup) - ignored by /* above too, named here to be sure
+/cesium_ion_token.txt

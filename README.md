@@ -44,13 +44,20 @@ Saved/WeatherPipeline/WeatherSnapshots/<location>/
    ```bat
    "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" MyWorldEditor Win64 Development "-Project=%CD%\MyWorld.uproject" -WaitMutex
    ```
-5. **Connect Cesium ion.**
-   1. Open `MyWorld.uproject`; the level `Ingolstadt` opens.
-   2. Open the *Cesium* panel and choose *Connect to Cesium ion*, then sign in.
-   3. Under *Token*, use or create a token that can read asset `2275207`.
-   4. The city should appear in the viewport.
+5. **Give the pipeline your Cesium ion token.**
+   1. On [ion.cesium.com](https://ion.cesium.com): *Asset Depot* → **Google Photorealistic 3D Tiles**
+      → *Add to my assets*.
+   2. *Access Tokens* → copy your *Default* token (or create one that may read asset `2275207`).
+   3. Create a file **`cesium_ion_token.txt`** in the project folder (next to `MyWorld.uproject`) and
+      paste the token into it as one line. You can set the environment variable `CESIUM_ION_TOKEN`
+      instead.
 
-   The token is saved to `Content/CesiumSettings/`, which is git-ignored. Never commit it.
+   The file is git-ignored; never commit a token. Every capture checks the token with Cesium ion
+   before Unreal starts, and names the problem if there is one.
+
+   To also see the city in the editor, open the *Cesium* panel → *Connect to Cesium ion* → *Token*.
+   The pipeline does not use that token. The editor keeps it only after **File → Save All**, so a
+   token chosen there without saving never reaches a capture.
 6. **Close the Unreal editor.** Runs start their own Unreal and refuse to start while the editor
    is open.
 7. **Check the install:**
@@ -196,8 +203,11 @@ spot.
 | Message / symptom | Fix |
 |---|---|
 | "The Unreal editor is open. Close it first" | Close it; a run needs the level file. |
-| HTTP 401 / 403 while loading tiles | Cesium ion token is missing or has no access to asset 2275207. Redo Setup step 5. |
-| HTTP 429 | Google tile quota used up: wait, or raise `tile_error`. |
+| `Not capturing: No Cesium ion access token` | Create `cesium_ion_token.txt` (Setup step 5). |
+| `Not capturing: Cesium ion rejected the access token` (or HTTP 401 while loading tiles) | The token is wrong, truncated or deleted. Copy it again from ion.cesium.com → *Access Tokens* into `cesium_ion_token.txt`. |
+| `... cannot read Cesium ion asset 2275207` (or HTTP 404) | Add *Google Photorealistic 3D Tiles* to *My Assets*, and let the token read it (Setup step 5). |
+| Editor shows a "Cesium ion Token Troubleshooting" window | This affects the editor only. Captures use `cesium_ion_token.txt`. To fix the editor: *Select or create a new project default token*, then **File → Save All**. |
+| HTTP 429 | Tile quota used up: wait, or raise `tile_error`. |
 | `The module 'Tools' could not be loaded` (PowerShell) | Run from the project folder with the leading `.\`: `.\Tools\weather.cmd --imagecount`. Inside `Tools`: `.\weather.cmd --imagecount`. |
 | `No usable Python found` | Install UE 5.5 in the default path, or `set UE_PYTHON=...`. |
 | Build fails: "LiveCoding ... denied" | An editor, possibly hidden, is still running. End `UnrealEditor.exe` in Task Manager. |

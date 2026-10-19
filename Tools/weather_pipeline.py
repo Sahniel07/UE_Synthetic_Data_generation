@@ -22,6 +22,9 @@ key written here against the plugin's header.
 
 The same file also runs INSIDE Unreal (with WP_INSIDE_UNREAL set) to move the georeference - see the
 bottom of the file. Standard library only.
+
+The city tiles come from Cesium ion: put your Cesium ion access token in cesium_ion_token.txt in the
+project folder (git-ignored), or set CESIUM_ION_TOKEN. Every capture checks it first - see README.
 """
 
 from __future__ import annotations
@@ -35,6 +38,9 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
@@ -327,11 +333,26 @@ def launch_args(automate: bool, image: dict) -> List[str]:
                 *window_args(image, *AUTOMATED_WINDOW_MAX)]
     return ["-game", "-nosplash", *window_args(image, *MANUAL_WINDOW_MAX)]
 POLL_SECONDS = 2.0
+# --- Cesium ion: where the city tiles come from ----------------------------------------------------
+# The level's tileset is Google Photorealistic 3D Tiles, read through Cesium ion. Its token comes from
+# here, never from Content/CesiumSettings: choosing a token in the editor's Cesium panel is only kept
+# there once the editor saves it, and a capture session would otherwise load without one.
+GOOGLE_TILES_ION_ASSET = 2275207
+ION_TOKEN_ENV = "CESIUM_ION_TOKEN"                   # first choice: this environment variable
+ION_TOKEN_FILE_NAME = "cesium_ion_token.txt"         # then this file in the project folder (git-ignored)
+ION_ENDPOINT = "https://api.cesium.com/v1/assets/{asset}/endpoint"
+ION_CHECK_TIMEOUT_S = 20
+UNREAL_ION_TOKEN_ENV = "WP_CESIUM_ION_TOKEN"         # how the plugin receives it (WeatherPipelineModule)
+ION_TOKEN_FILE = PROJECT_ROOT / ION_TOKEN_FILE_NAME
+# What the editor last saved as the project's default token - the fallback when none is given.
+SAVED_ION_SERVER = PROJECT_ROOT / "Content" / "CesiumSettings" / "CesiumIonServers" / "CesiumIonSaaS.uasset"
 LEVEL_SAVE_TIMEOUT_S = 900                 # the headless level save takes about a minute
 TILE_STATUS_REASONS = {
-    "429": "Google Map Tiles quota used up - see the quotas in Google Cloud Console, or wait for the reset",
-    "403": "the Google API key was refused - check the key and that the Map Tiles API is enabled",
-    "401": "no valid Google API key",
+    "429": "the tile quota is used up - wait for it to reset, or raise tile_error to download less",
+    "404": f"the Cesium ion token has no access to asset {GOOGLE_TILES_ION_ASSET} (Google Photorealistic "
+           f"3D Tiles) - add it to My Assets on ion.cesium.com",
+    "403": "the tile server refused the request - check the Cesium ion token and its assets",
+    "401": f"Cesium ion rejected the access token - put a valid one in {ION_TOKEN_FILE_NAME}",
 }
 CM_PER_M = 100.0
 # In the georeferenced world Unreal +X is east and +Y is south, so a compass bearing is Unreal yaw + 90.
@@ -999,6 +1020,60 @@ def session_is_running() -> bool:
     return _is_running("UnrealEditor-Cmd.exe")
 
 
+def find_ion_token() -> Tuple[Optional[str], str]:
+    """The Cesium ion access token for the capture, and where it came from: CESIUM_ION_TOKEN, else
+    cesium_ion_token.txt, else the token the editor last saved in the project. (None, "") when none."""
+    token = os.environ.get(ION_TOKEN_ENV, "").strip()
+    if token:
+        return token, f"the {ION_TOKEN_ENV} environment variable"
+    if ION_TOKEN_FILE.is_file():
+        token = ION_TOKEN_FILE.read_text(encoding="utf-8-sig").strip()
+        if token:
+            return token, ION_TOKEN_FILE_NAME
+    if SAVED_ION_SERVER.is_file():
+        match = re.search(rb"eyJ[\w-]+\.[\w-]+\.[\w-]+", SAVED_ION_SERVER.read_bytes())
+        if match:
+            return match.group().decode("ascii"), "the token saved in Content/CesiumSettings"
+    return None, ""
+
+
+def ion_token_problem(token: Optional[str], source: str) -> Optional[str]:
+    """Why the token cannot load the city tiles, asked of Cesium ion itself; None when it can, or when
+    Cesium ion cannot be reached (then a warning is printed and the capture tries anyway). Never
+    includes the token: Cesium ion's error replies echo it."""
+    get_one = (f"Copy a token from https://ion.cesium.com/tokens into {ION_TOKEN_FILE_NAME} in the project "
+               f"folder (one line; it is git-ignored), or set {ION_TOKEN_ENV}.")
+    if not token:
+        return f"No Cesium ion access token. {get_one}"
+    url = ION_ENDPOINT.format(asset=GOOGLE_TILES_ION_ASSET) + "?" + urllib.parse.urlencode({"access_token": token})
+    try:
+        with urllib.request.urlopen(url, timeout=ION_CHECK_TIMEOUT_S):
+            return None
+    except urllib.error.HTTPError as error:
+        code = error.code
+    except (urllib.error.URLError, OSError) as error:
+        reason = getattr(error, "reason", error)
+        print(f"Warning: could not reach Cesium ion to check the access token ({reason}); trying anyway.",
+              file=sys.stderr)
+        return None
+    if code == 401:
+        return f"Cesium ion rejected the access token from {source}: it is not a valid token. {get_one}"
+    if code == 404:
+        return (f"The access token from {source} cannot read Cesium ion asset {GOOGLE_TILES_ION_ASSET} "
+                f"(Google Photorealistic 3D Tiles). On ion.cesium.com add that asset to My Assets (Asset "
+                f"Depot), and make sure the token may read it.")
+    return f"Cesium ion answered HTTP {code} when checking the access token from {source}."
+
+
+def unreal_env() -> Dict[str, str]:
+    """The capture session's environment: this one, plus the Cesium ion token for the plugin."""
+    env = dict(os.environ)
+    token, _ = find_ion_token()
+    if token:
+        env[UNREAL_ION_TOKEN_ENV] = token
+    return env
+
+
 def _is_running(image_name: str) -> bool:
     if sys.platform != "win32":
         return False
@@ -1195,7 +1270,8 @@ def capture_with_progress(editor: Path, dirs: Sequence[Path], expected: int, lau
         RUN_LOG.unlink()          # the checks and the watcher must only ever read this session's log
     except FileNotFoundError:
         pass
-    process = subprocess.Popen([str(editor), str(UPROJECT), LEVEL, *launch_args, f"-abslog={RUN_LOG}"])
+    process = subprocess.Popen([str(editor), str(UPROJECT), LEVEL, *launch_args, f"-abslog={RUN_LOG}"],
+                               env=unreal_env())
     started = time.time()
     first_image_at: Optional[float] = None
     last_count = -1
@@ -1666,6 +1742,10 @@ def _capture(cities: List[City]) -> int:
         print("Another headless Unreal (UnrealEditor-Cmd.exe) is running - an earlier capture, maybe stuck. "
               "Let it finish or end it in Task Manager first: two sessions would overwrite each other's "
               "settings and log.", file=sys.stderr)
+        return 1
+    problem = ion_token_problem(*find_ion_token())
+    if problem:
+        print(f"Not capturing: {problem}", file=sys.stderr)
         return 1
     started = time.time()
     failed = run_cities(cities, editor)

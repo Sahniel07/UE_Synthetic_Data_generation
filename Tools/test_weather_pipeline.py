@@ -21,8 +21,10 @@ import copy
 import io
 import json
 import math
+import os
 import re
 import struct
+import subprocess
 import tempfile
 import time
 import unittest
@@ -1297,6 +1299,105 @@ class TestAnyInputIsNamedNotCrashed(unittest.TestCase):
                         self.fail(f"{where} = {bad!r} crashed: {type(error).__name__}: {error}")
                 self.assertIn(code, (0, 1), f"{where} = {bad!r}")
         self.assertGreater(tried, 500)
+
+
+class TestCesiumIonToken(unittest.TestCase):
+    """The capture's tiles need a Cesium ion token. It comes from the pipeline - never only from what the
+    editor happened to save - is checked before Unreal starts, and is never printed."""
+
+    TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJqdGkiOiJ0ZXN0In0.c2lnbmF0dXJl"
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.saved = (wp.ION_TOKEN_FILE, wp.SAVED_ION_SERVER, os.environ.pop(wp.ION_TOKEN_ENV, None),
+                      wp.urllib.request.urlopen)
+        wp.ION_TOKEN_FILE = self.dir / wp.ION_TOKEN_FILE_NAME
+        wp.SAVED_ION_SERVER = self.dir / "CesiumIonSaaS.uasset"
+
+    def tearDown(self):
+        wp.ION_TOKEN_FILE, wp.SAVED_ION_SERVER, env, wp.urllib.request.urlopen = self.saved
+        if env is not None:
+            os.environ[wp.ION_TOKEN_ENV] = env
+        else:
+            os.environ.pop(wp.ION_TOKEN_ENV, None)
+
+    def answer(self, status):
+        """Cesium ion answers every request with `status` (an exception for a lost connection)."""
+        def urlopen(url, timeout):
+            self.asked = url
+            if isinstance(status, Exception):
+                raise status
+            if status != 200:
+                raise wp.urllib.error.HTTPError(url, status, "", {}, io.BytesIO(url.encode()))
+            return contextlib.nullcontext()
+        wp.urllib.request.urlopen = urlopen
+
+    def test_the_token_comes_from_env_then_file_then_the_saved_project(self):
+        self.assertEqual(wp.find_ion_token(), (None, ""))
+        wp.SAVED_ION_SERVER.write_bytes(b"\x00binary" + self.TOKEN.encode() + b"\x00more")
+        self.assertEqual(wp.find_ion_token()[0], self.TOKEN)
+        wp.ION_TOKEN_FILE.write_text("   \n", encoding="utf-8")            # empty: not a token
+        self.assertEqual(wp.find_ion_token()[0], self.TOKEN)
+        wp.ION_TOKEN_FILE.write_text("\ufefffile-token\n", encoding="utf-8")  # Notepad's BOM and newline
+        self.assertEqual(wp.find_ion_token(), ("file-token", wp.ION_TOKEN_FILE_NAME))
+        os.environ[wp.ION_TOKEN_ENV] = " env-token "
+        self.assertEqual(wp.find_ion_token()[0], "env-token")
+
+    def test_each_failure_is_named_without_the_token(self):
+        self.answer(200)
+        self.assertIsNone(wp.ion_token_problem(self.TOKEN, "test"))
+        self.assertIn(f"/assets/{wp.GOOGLE_TILES_ION_ASSET}/endpoint", self.asked)
+        for status, fragment in ((401, "not a valid token"), (404, "My Assets"), (500, "HTTP 500")):
+            self.answer(status)
+            problem = wp.ion_token_problem(self.TOKEN, "test")
+            self.assertIn(fragment, problem)
+            self.assertNotIn(self.TOKEN, problem)
+        self.assertIn(wp.ION_TOKEN_FILE_NAME, wp.ion_token_problem(None, ""))
+
+    def test_no_connection_warns_and_tries_anyway(self):
+        self.answer(wp.urllib.error.URLError("offline"))
+        with quiet():
+            self.assertIsNone(wp.ion_token_problem(self.TOKEN, "test"))
+
+    def test_the_capture_session_gets_the_token(self):
+        self.assertNotIn(wp.UNREAL_ION_TOKEN_ENV, wp.unreal_env())
+        wp.ION_TOKEN_FILE.write_text(self.TOKEN, encoding="utf-8")
+        self.assertEqual(wp.unreal_env()[wp.UNREAL_ION_TOKEN_ENV], self.TOKEN)
+        module = (SOURCE / "Private" / "WeatherPipelineModule.cpp").read_text(encoding="utf-8")
+        self.assertIn(f'TEXT("{wp.UNREAL_ION_TOKEN_ENV}")', module)     # the name the plugin reads
+        source = Path(wp.__file__).read_text(encoding="utf-8")
+        self.assertIn("env=unreal_env()", source)                       # the capture's Popen passes it
+
+    def test_a_bad_token_stops_the_run_before_unreal_starts(self):
+        self.answer(401)
+        wp.ION_TOKEN_FILE.write_text("revoked", encoding="utf-8")
+        patched = {"find_editor_cmd": lambda: Path("UnrealEditor-Cmd.exe"), "editor_is_open": lambda: False,
+                   "session_is_running": lambda: False, "run_cities": lambda *args: self.fail("Unreal started")}
+        originals = {name: getattr(wp, name) for name in patched}
+        for name, value in patched.items():
+            setattr(wp, name, value)
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(wp._capture(build_cities()), 1)
+        finally:
+            for name, value in originals.items():
+                setattr(wp, name, value)
+        self.assertIn("Not capturing: Cesium ion rejected the access token from cesium_ion_token.txt", err.getvalue())
+
+    def test_the_token_file_is_never_committed(self):
+        root = TOOLS.parent
+        try:
+            result = subprocess.run(["git", "check-ignore", "-q", wp.ION_TOKEN_FILE_NAME], cwd=root)
+        except FileNotFoundError:
+            self.skipTest("git not installed")
+        self.assertEqual(result.returncode, 0, f"{wp.ION_TOKEN_FILE_NAME} would be committed")
+
+    def test_tile_errors_name_the_cesium_token_not_a_google_key(self):
+        reasons = " ".join(wp.TILE_STATUS_REASONS.values())
+        self.assertNotIn("Google API key", reasons)
+        self.assertIn(wp.ION_TOKEN_FILE_NAME, wp.TILE_STATUS_REASONS["401"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

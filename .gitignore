@@ -12,6 +12,7 @@
 !/Plugins/
 !/Content/
 !/Saved/
+!/docs/
 
 # Saved: only the preset dump the tests compare PRESET_TABLE with
 /Saved/*

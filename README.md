@@ -19,9 +19,9 @@ Saved/WeatherPipeline/WeatherSnapshots/Amsterdam/
 |---|---|
 | Windows 10/11 with a graphics card | |
 | [Unreal Engine 5.5](https://www.unrealengine.com/download) | from the Epic Games Launcher |
-| Visual Studio 2022 | open `.vsconfig` (in this folder) with the *Visual Studio Installer*: it ticks what Unreal needs |
+| Visual Studio 2022 | in the *Visual Studio Installer*: *More → Import configuration* → this folder's `.vsconfig` (it selects what Unreal needs) |
 | [Cesium for Unreal](https://www.fab.com/listings/76c295fe-0dc6-4fd6-8319-e9833be427cd) | free |
-| [Ultra Dynamic Sky](https://www.fab.com/listings/84fda27a-c79f-49c9-8458-82401fb37cfb) | paid; not included here (its license forbids sharing it) |
+| [Ultra Dynamic Sky](https://www.fab.com/listings/84fda27a-c79f-49c9-8458-82401fb37cfb) | paid; tested with version 9.x. Not included here: its Fab license does not allow sharing its files |
 | A [Cesium ion](https://ion.cesium.com) account | free |
 
 ## Setup (once)
@@ -33,9 +33,11 @@ Not inside OneDrive.
 Follow step 1 of Cesium's guide: [Cesium for Unreal Quickstart](https://cesium.com/learn/unreal/unreal-quickstart/).
 
 **3. Put Ultra Dynamic Sky into this project's `Content` folder**, before opening the project:
-- bought on Fab: *Fab Library → Ultra Dynamic Sky → Add to Project* → this project, **or**
-- already in another project: copy that project's whole `Content\UltraDynamicSky` folder into this
-  project's `Content` folder.
+- **From Fab:** Epic Games Launcher → *Unreal Engine* → *Fab Library* → find *Ultra Dynamic Sky* →
+  **Add to Project** → choose `MyWorld` (tick *Show all projects* if it is not listed) → **Add to
+  Project**, **or**
+- **Already in another project:** with Unreal closed, copy that project's whole
+  `Content\UltraDynamicSky` folder into this project's `Content` folder.
 
 It must end up exactly like this (not renamed, not inside another folder):
 ```
@@ -55,29 +57,33 @@ The level already contains the sky and weather actors, so there is nothing to dr
 
    <img src="docs/images/build-1-show-more-options.png" width="400"> <img src="docs/images/build-2-generate-vs-project-files.png" width="400">
 
-2. Double-click `MyWorld.uproject` and click **Yes** when it asks to rebuild the missing modules.
-   The first build takes a few minutes.
+2. Double-click `MyWorld.uproject`. Unreal asks *"The following modules are missing or built with a
+   different engine version: ... Would you like to rebuild them now?"*. Click **Yes**. The first build
+   can take a few minutes; the editor opens when it is done.
 
-   If it says the modules could not be built, open `MyWorld.sln` (created in 1.), choose
+   If it says *"could not be compiled. Try rebuilding from source manually."*, open `MyWorld.sln` (created in 1.), choose
    **Development Editor** and **Win64** at the top, and *Build → Build Solution*. Then double-click
    `MyWorld.uproject` again.
 
 **5. Connect your Cesium ion account** in the editor that opens:
 1. On [ion.cesium.com](https://ion.cesium.com) → *Asset Depot* → **Google Photorealistic 3D Tiles** →
    *Add to my assets*.
-2. In the editor's *Cesium* panel → *Connect to Cesium ion* → sign in → *Token* → *Select or create a
-   new project default token*. (Step 4 of the
-   [Quickstart](https://cesium.com/learn/unreal/unreal-quickstart/) shows these screens.)
-3. The city appears in the viewport.
+2. In the editor, open the **Cesium** panel (the *Cesium* button in the toolbar) → **Connect to
+   Cesium ion** → sign in in the browser window that opens, and allow access.
+3. In the Cesium panel click **Token** → **Use an existing token** → pick your *Default Token* →
+   **Use as Project Default Token**. (Or **Create a new token** → **Create New Project Default
+   Token**.) Step 4 of the [Quickstart](https://cesium.com/learn/unreal/unreal-quickstart/) shows
+   these screens.
+4. The city appears in the viewport.
 
-**6. File → Save All, then close the editor.** *Save All* stores your token where the pipeline reads
-it.
+**6. Save and close:** in the editor's menu bar **File → Save All** (`Ctrl+Shift+S`), then close the
+editor. *Save All* stores your token where the pipeline reads it.
 
 **7. Check it:** in PowerShell, in the project folder (where `MyWorld.uproject` is):
 ```powershell
 .\Tools\weather.cmd --test
 ```
-All tests should pass.
+It should end with `OK` (one test is skipped until you have captured images).
 
 ## Capture images
 
@@ -145,6 +151,7 @@ every weather) and `weather_metadata.json`, one record per image:
 
 | | |
 |---|---|
+| Image | `image_file`, `waypoint_index` (the `NN` in the file name) |
 | Camera | `camera_location`, `camera_rotation`, `camera_fov_deg`, `lens`, `image_width`, `image_height` |
 | Place | `latitude_deg`, `longitude_deg`, `altitude_m`, `ground_altitude_m`, `height_above_ground_m` |
 | Weather | `condition`, `rain`, `snow`, `fog`, `visibility_km`, `cloud_coverage`, `wind_intensity`, `wind_from_deg`, `material_snow_coverage`, `rain_drop_scale`, `snow_flake_scale` |
@@ -155,7 +162,7 @@ every record after the run.
 
 ## If something goes wrong
 
-The pipeline checks everything before Unreal starts and says what to fix. The common ones:
+The pipeline stops early and says what to fix. The common messages:
 
 | You see | Do this |
 |---|---|
@@ -183,8 +190,8 @@ start (measured again once the city has loaded).
 **Extra sky actors.** If Ultra Dynamic Sky or Weather was dragged in again, the pipeline keeps one of
 each and says `removed the extra ...`. That is fine.
 
-**Manual start.** `AUTOMATE = False`: a window opens over the location; fly (WASD, Q/E up/down, mouse
-to look) and press **P**. That view is the first spot; the rest are random jumps around it.
+**Manual start.** `AUTOMATE = False`: a window opens over the location; fly (WASD to move, Q and E
+for height, the mouse to look) and press **P**. That view is the first spot; the rest are random jumps around it.
 
 **Other settings** in `Tools/weather_pipeline.py`: `OUTPUT_DIR` (where images go), `SUN` (day length
 or the real sun on a date, sun size, lens flare), `CLOUDS` (cloud shape), `CLOUD_BASE_ABOVE_GROUND_M`,
@@ -208,7 +215,7 @@ or the real sun on a date, sun size, lens flare), `CLOUDS` (cloud shape), `CLOUD
 
 This project builds on others' work, which you install yourself:
 
-- **[Cesium for Unreal](https://github.com/CesiumGS/cesium-unreal)** by Cesium GS, Inc. (Apache 2.0),
+- **[Cesium for Unreal](https://github.com/CesiumGS/cesium-unreal)** by CesiumGS, Inc. (Apache 2.0),
   and **[Cesium ion](https://cesium.com/platform/cesium-ion/)**, which streams the city tiles.
 - **Google Photorealistic 3D Tiles** from Google Maps Platform, through Cesium ion. Google requires
   its attribution wherever the tiles are shown. Check the

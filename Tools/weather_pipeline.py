@@ -155,7 +155,7 @@ AUTOMATE = True
 
 
 # ##################################################################################################
-#   ADVANCED SETTINGS - change only with a reason
+#   ADVANCED SETTINGS 
 # ##################################################################################################
 
 # Where images and weather_metadata.json go: OUTPUT_DIR/WeatherSnapshots/<city>/. Relative = inside

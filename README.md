@@ -6,13 +6,6 @@ with a JSON record per image.
 
 ![The same camera spot in five of the 25 weathers](docs/images/example-weathers.jpg)
 
-```
-Saved/WeatherPipeline/WeatherSnapshots/Amsterdam/
-    clear_p00.png   rain_medium_p00.png   snow_heavy_p00.png   ...   weather_metadata.json
-```
-
----
-
 ## What you need
 
 | | |

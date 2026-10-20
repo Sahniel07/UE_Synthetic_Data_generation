@@ -50,17 +50,17 @@ MyWorld\
 ```
 The level already contains the sky and weather actors, so there is nothing to drag into it.
 
-**4. Build:** double-click `MyWorld.uproject` and click **Yes** when it asks to rebuild modules.
+**4. Build.**
+1. Right-click `MyWorld.uproject` → **Show more options** → **Generate Visual Studio project files**:
 
-<details>
-<summary>If that fails: build with Visual Studio</summary>
+   <img src="docs/images/build-1-show-more-options.png" width="400"> <img src="docs/images/build-2-generate-vs-project-files.png" width="400">
 
-Right-click `MyWorld.uproject` → **Show more options** → **Generate Visual Studio project files**:
+2. Double-click `MyWorld.uproject` and click **Yes** when it asks to rebuild the missing modules.
+   The first build takes a few minutes.
 
-<img src="docs/images/build-1-show-more-options.png" width="420"> <img src="docs/images/build-2-generate-vs-project-files.png" width="420">
-
-Then open `MyWorld.sln`, choose **Development Editor** and **Win64**, and *Build → Build Solution*.
-</details>
+   If it says the modules could not be built, open `MyWorld.sln` (created in 1.), choose
+   **Development Editor** and **Win64** at the top, and *Build → Build Solution*. Then double-click
+   `MyWorld.uproject` again.
 
 **5. Connect your Cesium ion account** in the editor that opens:
 1. On [ion.cesium.com](https://ion.cesium.com) → *Asset Depot* → **Google Photorealistic 3D Tiles** →

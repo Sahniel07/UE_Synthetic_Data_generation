@@ -4,6 +4,8 @@ Labelled images of real cities in any weather, made in Unreal Engine 5.5. You li
 pipeline flies a camera to random spots there and photographs each spot in every weather you pick,
 with a JSON record per image.
 
+![The same camera spot in five of the 25 weathers](docs/images/example-weathers.jpg)
+
 ```
 Saved/WeatherPipeline/WeatherSnapshots/Amsterdam/
     clear_p00.png   rain_medium_p00.png   snow_heavy_p00.png   ...   weather_metadata.json
@@ -35,8 +37,18 @@ Follow step 1 of Cesium's guide: [Cesium for Unreal Quickstart](https://cesium.c
 - already in another project: copy that project's whole `Content\UltraDynamicSky` folder into this
   project's `Content` folder.
 
-It must end up as `Content\UltraDynamicSky\` (not renamed, not inside another folder). The level
-already contains the sky and weather actors, so there is nothing to drag into it.
+It must end up exactly like this (not renamed, not inside another folder):
+```
+MyWorld\
+├─ MyWorld.uproject
+└─ Content\
+   └─ UltraDynamicSky\
+      ├─ Blueprints\
+      │  ├─ Ultra_Dynamic_Sky.uasset
+      │  └─ Ultra_Dynamic_Weather.uasset
+      └─ ... (the rest of the folder)
+```
+The level already contains the sky and weather actors, so there is nothing to drag into it.
 
 **4. Build:** double-click `MyWorld.uproject` and click **Yes** when it asks to rebuild modules.
 
@@ -77,8 +89,23 @@ All settings are at the top of **`Tools/weather_pipeline.py`**, each explained t
 .\Tools\weather.cmd --location Amsterdam    # capture one location
 ```
 
-Close the Unreal editor first. A run is done when every location ends with `Checks: all passed.`
-Keep the `.\` in front: PowerShell needs it. (Inside the `Tools` folder: `.\weather.cmd`.)
+Close the Unreal editor first. Keep the `.\` in front: PowerShell needs it. (Inside the `Tools`
+folder: `.\weather.cmd`.) A good run looks like this:
+```
+Images: 4
+ETA:    1m 23s
+Moving the level to Amsterdam (52.377956, 4.89707) ...
+  Level saved.
+Capturing 4 images in one session: Amsterdam
+  4/4 images  elapsed 48s  ETA 0s
+  Finished in 48s
+
+--- Amsterdam: 4/4 images ---
+  Checks: all passed.
+
+Done in 57s.
+```
+Every location must end with `Checks: all passed.`
 
 ### Choose your locations
 
